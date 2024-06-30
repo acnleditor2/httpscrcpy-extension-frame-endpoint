@@ -51,9 +51,7 @@ static char *read_string(void) {
 }
 
 static void write_8(uint8_t i) { write(STDOUT_FILENO, &i, sizeof(i)); }
-
 static void write_16(uint16_t i) { write(STDOUT_FILENO, &i, sizeof(i)); }
-
 static void write_32(uint32_t i) { write(STDOUT_FILENO, &i, sizeof(i)); }
 
 static void write_string(const char *s) {
@@ -143,7 +141,7 @@ static void extension_loop(void) {
         free(value);
       }
 
-      if (frame_width > 0) {
+      if (frame_data) {
         write_16(200);
         write_8(6);
 
