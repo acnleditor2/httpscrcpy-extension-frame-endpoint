@@ -162,41 +162,35 @@ static void extension_loop(void) {
       if (frame_data) {
         write_16(200);
         write_8(6);
-
         write_string("Cache-Control");
         write_string("no-store");
-
         int size = frame_width * frame_height * (alpha ? 4 : 3);
         char *s;
-
         write_string("Content-Length");
         asprintf(&s, "%d", size);
         write_string(s);
         free(s);
-
         write_string("Content-Type");
         write_string("application/octet-stream");
-
         write_string("Width");
         asprintf(&s, "%d", frame_width);
         write_string(s);
         free(s);
-
         write_string("Height");
         asprintf(&s, "%d", frame_height);
         write_string(s);
         free(s);
-
         write_string("Channels");
         write_string(alpha ? "4" : "3");
-
         write_32(size);
         write(STDOUT_FILENO, frame_data, size);
         write_32(0);
         write_8(0);
       } else {
         write_16(404);
-        write_8(0);
+        write_8(1);
+        write_string("Cache-Control");
+        write_string("no-store");
         write_32(0);
         write_8(0);
       }

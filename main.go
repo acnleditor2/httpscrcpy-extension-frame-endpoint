@@ -210,7 +210,11 @@ func main() {
 					b.WriteByte(0)
 				} else {
 					binary.Write(&b, binary.NativeEndian, uint16(404))
-					b.WriteByte(0)
+					b.WriteByte(1)
+					b.WriteByte(13)
+					b.WriteString("Cache-Control")
+					b.WriteByte(8)
+					b.WriteString("no-store")
 					binary.Write(&b, binary.NativeEndian, uint32(0))
 					b.WriteByte(0)
 				}
