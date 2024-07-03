@@ -198,10 +198,11 @@ func main() {
 					b.WriteByte(8)
 					b.WriteString("Channels")
 					b.WriteByte(1)
-					b.WriteString(map[int]string{
-						4: "4",
-						5: "3",
-					}[len(os.Args)])
+					if len(os.Args) == 4 {
+						b.WriteString("4")
+					} else {
+						b.WriteString("3")
+					}
 					binary.Write(&b, binary.NativeEndian, uint32(len(ps.frame)))
 					b.Write(ps.frame)
 					ps.m.Unlock()
@@ -247,10 +248,11 @@ func main() {
 
 				width := int(binary.NativeEndian.Uint32(data[len(data)-8:]))
 				height := int(binary.NativeEndian.Uint32(data[len(data)-4:]))
-				ps.frame = make([]byte, width*height*map[int]int{
-					4: 4,
-					5: 3,
-				}[len(os.Args)])
+				if len(os.Args) == 4 {
+					ps.frame = make([]byte, width*height*4)
+				} else {
+					ps.frame = make([]byte, width*height*3)
+				}
 				ps.contentLengthString = strconv.Itoa(len(ps.frame))
 				ps.widthString = strconv.Itoa(width)
 				ps.heightString = strconv.Itoa(height)
