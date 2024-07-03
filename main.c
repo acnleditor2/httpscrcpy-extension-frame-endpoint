@@ -33,7 +33,23 @@ static const AVCodec *get_decoder(uint32_t codec_id) {
   return NULL;
 }
 
-static char *read_string(void) {
+static char *read_string_8(void) {
+  uint8_t length;
+  if (read(STDIN_FILENO, &length, sizeof(length)) != sizeof(length)) {
+    return NULL;
+  }
+
+  char *s = malloc(length + 1);
+  s[length] = '\0';
+
+  if (read(STDIN_FILENO, s, length) != length) {
+    return NULL;
+  }
+
+  return s;
+}
+
+static char *read_string_32(void) {
   uint32_t length;
   if (read(STDIN_FILENO, &length, sizeof(length)) != sizeof(length)) {
     return NULL;
@@ -103,37 +119,40 @@ static void extension_loop(void) {
         return;
       }
 
-      uint32_t count;
-      if (read(STDIN_FILENO, &count, sizeof(count)) != sizeof(count)) {
+      uint32_t query_count;
+      if (read(STDIN_FILENO, &query_count, sizeof(query_count)) !=
+          sizeof(query_count)) {
         return;
       }
 
-      for (int i = 0; i < count; i++) {
-        char *name = read_string();
+      for (int i = 0; i < query_count; i++) {
+        char *name = read_string_32();
         if (!name) {
           return;
         }
         free(name);
 
-        char *value = read_string();
+        char *value = read_string_32();
         if (!value) {
           return;
         }
         free(value);
       }
 
-      if (read(STDIN_FILENO, &count, sizeof(count)) != sizeof(count)) {
+      uint32_t header_count;
+      if (read(STDIN_FILENO, &header_count, sizeof(header_count)) !=
+          sizeof(header_count)) {
         return;
       }
 
-      for (int i = 0; i < count; i++) {
-        char *name = read_string();
+      for (int i = 0; i < header_count; i++) {
+        char *name = read_string_32();
         if (!name) {
           return;
         }
         free(name);
 
-        char *value = read_string();
+        char *value = read_string_32();
         if (!value) {
           return;
         }
@@ -147,9 +166,6 @@ static void extension_loop(void) {
         write_string("Cache-Control");
         write_string("no-store");
 
-        write_string("Content-Type");
-        write_string("application/octet-stream");
-
         int size = frame_width * frame_height * (alpha ? 4 : 3);
         char *s;
 
@@ -157,6 +173,9 @@ static void extension_loop(void) {
         asprintf(&s, "%d", size);
         write_string(s);
         free(s);
+
+        write_string("Content-Type");
+        write_string("application/octet-stream");
 
         write_string("Width");
         asprintf(&s, "%d", frame_width);
@@ -190,8 +209,22 @@ static void extension_loop(void) {
         return;
       }
 
+      char *device_name = read_string_8();
+      if (!device_name) {
+        return;
+      }
+      free(device_name);
+
       uint32_t codec_id;
       if (read(STDIN_FILENO, &codec_id, sizeof(codec_id)) != sizeof(codec_id)) {
+        return;
+      }
+
+      uint32_t unused;
+      if (read(STDIN_FILENO, &unused, sizeof(unused)) != sizeof(unused)) {
+        return;
+      }
+      if (read(STDIN_FILENO, &unused, sizeof(unused)) != sizeof(unused)) {
         return;
       }
 
