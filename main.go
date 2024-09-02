@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -22,19 +23,37 @@ type portState struct {
 	m                   sync.Mutex
 }
 
-var portMap = map[int]*portState{}
+type Config struct {
+	ID        string         `json:"id"`
+	Ffmpeg    string         `json:"ffmpeg"`
+	Alpha     bool           `json:"alpha"`
+	Endpoints map[string]int `json:"endpoints"`
+}
 
 func main() {
-	if len(os.Args) == 4 || (len(os.Args) == 5 && os.Args[4] == "noalpha") {
-		var err error
+	if len(os.Args) == 2 {
+		var config Config
+
+		err := json.Unmarshal([]byte(os.Args[1]), &config)
+		if err != nil {
+			panic(err)
+		}
+
+		var path string
 
 		{
 			var b bytes.Buffer
-			b.WriteByte(byte(len(os.Args[1])))
-			b.WriteString(os.Args[1])
-			b.WriteByte(1)
-			b.WriteByte(byte(len(os.Args[2])))
-			b.WriteString(os.Args[2])
+			b.WriteByte(byte(len(config.ID)))
+			b.WriteString(config.ID)
+			b.WriteByte(byte(len(config.Endpoints)))
+			for endpoint := range config.Endpoints {
+				b.WriteByte(byte(len(endpoint)))
+				b.WriteString(endpoint)
+
+				if len(config.Endpoints) == 1 {
+					path = endpoint
+				}
+			}
 
 			_, err = b.WriteTo(os.Stdout)
 			if err != nil {
@@ -42,24 +61,47 @@ func main() {
 			}
 		}
 
+		portMap := map[int]*portState{}
 		var data []byte
 		var n int
 
 		for {
-			data = make([]byte, 3)
+			data = make([]byte, 1)
 
 			n, err = io.ReadFull(os.Stdin, data)
 			if err != nil {
 				panic(err)
 			}
-			if n != 3 {
+			if n != 1 {
 				break
 			}
 
-			port := int(binary.NativeEndian.Uint16(data[1:]))
-
 			switch data[0] {
 			case 0:
+				if len(config.Endpoints) > 1 {
+					data = make([]byte, 1)
+
+					n, err = io.ReadFull(os.Stdin, data)
+					if err != nil {
+						panic(err)
+					}
+					if n != 1 {
+						return
+					}
+
+					data = make([]byte, int(data[0]))
+
+					n, err = io.ReadFull(os.Stdin, data)
+					if err != nil {
+						panic(err)
+					}
+					if n != len(data) {
+						return
+					}
+
+					path = string(data)
+				}
+
 				data = make([]byte, 4)
 
 				n, err = io.ReadFull(os.Stdin, data)
@@ -168,7 +210,7 @@ func main() {
 					}
 				}
 
-				ps, ok := portMap[port]
+				ps, ok := portMap[config.Endpoints[path]]
 
 				var b bytes.Buffer
 				if ok {
@@ -198,7 +240,7 @@ func main() {
 					b.WriteByte(8)
 					b.WriteString("Channels")
 					b.WriteByte(1)
-					if len(os.Args) == 4 {
+					if config.Alpha {
 						b.WriteString("4")
 					} else {
 						b.WriteString("3")
@@ -224,17 +266,18 @@ func main() {
 					panic(err)
 				}
 			case 1:
-				data = make([]byte, 1)
+				data = make([]byte, 3)
 
 				n, err = io.ReadFull(os.Stdin, data)
 				if err != nil {
 					panic(err)
 				}
-				if n != 1 {
+				if n != 3 {
 					return
 				}
 
-				data = make([]byte, int(data[0])+12)
+				port := int(binary.NativeEndian.Uint16(data[:2]))
+				data = make([]byte, int(data[2])+12)
 
 				n, err = io.ReadFull(os.Stdin, data)
 				if err != nil {
@@ -252,7 +295,7 @@ func main() {
 
 				width := int(binary.NativeEndian.Uint32(data[len(data)-8:]))
 				height := int(binary.NativeEndian.Uint32(data[len(data)-4:]))
-				if len(os.Args) == 4 {
+				if config.Alpha {
 					ps.frame = make([]byte, width*height*4)
 				} else {
 					ps.frame = make([]byte, width*height*3)
@@ -267,7 +310,7 @@ func main() {
 				}
 
 				ps.ffmpeg = exec.Command(
-					os.Args[3],
+					config.Ffmpeg,
 					"-probesize",
 					"32",
 					"-analyzeduration",
@@ -284,10 +327,10 @@ func main() {
 					"-f",
 					"rawvideo",
 					"-pix_fmt",
-					map[int]string{
-						4: "rgba",
-						5: "rgb24",
-					}[len(os.Args)],
+					map[bool]string{
+						false: "rgb24",
+						true:  "rgba",
+					}[config.Alpha],
 					"-vf",
 					fmt.Sprintf("scale='min(%[1]d,iw)':'min(%[2]d,ih)':force_original_aspect_ratio=decrease,pad=%[1]d:%[2]d:-1:-1:color=black", width, height),
 					"-",
@@ -310,8 +353,7 @@ func main() {
 					panic(err)
 				}
 
-				go func(p int) {
-					ps := portMap[p]
+				go func() {
 					frame := make([]byte, len(ps.frame))
 
 					for {
@@ -327,19 +369,20 @@ func main() {
 						copy(ps.frame, frame)
 						ps.m.Unlock()
 					}
-				}(port)
+				}()
 			case 2:
-				data = make([]byte, 12)
+				data = make([]byte, 14)
 
 				n, err = io.ReadFull(os.Stdin, data)
 				if err != nil {
 					panic(err)
 				}
-				if n != 12 {
+				if n != 14 {
 					return
 				}
 
-				data = make([]byte, int(binary.BigEndian.Uint32(data[8:])))
+				port := int(binary.NativeEndian.Uint16(data[:2]))
+				data = make([]byte, int(binary.BigEndian.Uint32(data[10:])))
 
 				n, err = io.ReadFull(os.Stdin, data)
 				if err != nil {

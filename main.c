@@ -114,11 +114,6 @@ static void extension_loop(void) {
 
     switch (type) {
     case 0: {
-      uint16_t port;
-      if (read(STDIN_FILENO, &port, sizeof(port)) != sizeof(port)) {
-        return;
-      }
-
       uint32_t query_count;
       if (read(STDIN_FILENO, &query_count, sizeof(query_count)) !=
           sizeof(query_count)) {
