@@ -24,7 +24,7 @@ type portState struct {
 }
 
 type Config struct {
-	ID        string         `json:"id"`
+	Id        string         `json:"id"`
 	Ffmpeg    string         `json:"ffmpeg"`
 	Alpha     bool           `json:"alpha"`
 	Endpoints map[string]int `json:"endpoints"`
@@ -43,8 +43,8 @@ func main() {
 
 		{
 			var b bytes.Buffer
-			b.WriteByte(byte(len(config.ID)))
-			b.WriteString(config.ID)
+			b.WriteByte(byte(len(config.Id)))
+			b.WriteString(config.Id)
 			b.WriteByte(byte(len(config.Endpoints)))
 			for endpoint := range config.Endpoints {
 				b.WriteByte(byte(len(endpoint)))
